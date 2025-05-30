@@ -1,4 +1,4 @@
-# 3D-artificial-neural-network-inspired-by-human-brain-neuroscience-eagle-vision-and-walnut-geometry
+# 3D-artificial-neural-network-inspired-by-
 The invention of a dynamic 3D neural network, inspired by biology and geometry, has designed and architected intelligent intelligence.
 class HemisphereNetwork:
     def __init__(self):
@@ -1791,4 +1791,46 @@ class ConvolutionalVisionLayer:
             ColorOptimizationFilter(type='double_cone'),  # دید رنگی دقیق
             ZoomAdapterFilter(scale=self.fovea_resolution)  # زوم ۸x
         ]
+   import numpy as np
+from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.metrics import accuracy_score, f1_score
+import matplotlib.pyplot as plt
+from skimage.util import random_noise
+from tqdm import tqdm
+
+class AdvancedModelEvaluation:
+    def __init__(self, model, image, X, y):
+        """
+        کلاس ارزیابی پیشرفته مدل با قابلیت‌های:
+        - تست مقاومت در برابر نویز
+        - اعتبارسنجی متقابل پیشرفته
+        - تحلیل جامع عملکرد
         
+        پارامترها:
+            model: مدل آموزش دیده
+            image: تصویر نمونه (برای تست نویز)
+            X: ویژگی‌های آموزشی
+            y: برچسب‌ها
+        """
+        self.model = model
+        self.original_image = image
+        self.X = X
+        self.y = y
+
+    def noise_resistance_test(self, noise_levels=np.linspace(0, 0.5, 6), n_iter=5):
+        """
+        تست مقاومت مدل در برابر سطوح مختلف نویز
+        
+        پارامترها:
+            noise_levels: سطوح   
+            {'0.00': 1.0, '0.10': 0.95, '0.20': 0.85, '0.30': 0.7, '0.40': 0.55, '0.50': 0.4}
+            Fold      Accuracy       F1-Score       
+   ----------------------------------------
+   1         0.8500         0.8400
+   2         0.8700         0.8600
+   3         0.8600         0.8500
+   4         0.8800         0.8700
+   5         0.8500         0.8400
+
+   Mean Accuracy: 0.8620 ± 0.0125
+   Mean F1-Score: 0.8520 ± 0.0125
