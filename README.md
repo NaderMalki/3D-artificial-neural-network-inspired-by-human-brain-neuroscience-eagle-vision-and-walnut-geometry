@@ -2206,3 +2206,16 @@ if __name__ == "__main__":
     print(f"- Processor Health: {system.status.processor_health:.2%}")
     print(f"- Actuator Health: {system.status.actuator_health:.2%}")
     print(f"- Last Checkup: {system.status.last_checkup}")
+    📊 Comparative Results:
+Architecture   Neurons    Time (ms)   Memory (KB)   Connectivity
+------------------------------------------------------------
+random        255        1.45        125.82        0.99        
+random        355        1.87        182.14        0.99        
+domino        255        1.32        125.12        0.99        
+domino        355        1.76        181.05        0.99        
+bushy         255        1.51        126.73        0.49        
+bushy         355        1.92        183.25        0.49        
+spiral        255        1.43        125.91        0.99        
+spiral        355        1.85        182.33        0.99        
+hyperbolic    255        1.48        126.15        2.13        
+hyperbolic    355        1.90        183.62        2.01
