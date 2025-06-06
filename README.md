@@ -1,6 +1,31 @@
 ۷# 3D-artificial-neural-network-inspired-by-
 The invention of a dynamic 3D neural network, inspired by biology and geometry, has designed and architected intelligent intelligence.
 class HemisphereNetwork:
+تعریف معماری شبکه
+layers = [
+    imageInputLayer([64 64 3]) % یک ورودی با ابعاد 64x64 و ۳ کانال برای تصاویر RGB
+    convolution2dLayer(3, 64, 'Padding', 'same')
+    reluLayer
+    maxPooling2dLayer(2, 'Stride', 2)
+    convolution2dLayer(3, 128, 'Padding', 'same')
+    reluLayer
+    maxPooling2dLayer(2, 'Stride', 2)
+    % افزودن لایه‌های گرافیک معکوس برای بازگردانی ویژگی‌ها
+    transposedConv2dLayer(4, 128, 'Stride', 2, 'Cropping', 'same')
+    reluLayer
+    transposedConv2dLayer(4, 64, 'Stride', 2, 'Cropping', 'same')
+    reluLayer
+    transposedConv2dLayer(4, 3, 'Stride', 2, 'Cropping', 'same') % خروجی با ۳ کانال برای تصویر RGB
+    regressionLayer
+];
+% تنظیمات آموزش
+options = trainingOptions('adam', ...
+    'MaxEpochs', 20, ...
+    'MiniBatchSize', 16, ...
+    'InitialLearnRate', 0.001, ...
+    'Plots', 'training-progress');
+% ساخت و آموزش شبکه
+net = trainNetwork(trainingData, targetData, 
     def __init__(self):
         self.left_nodes = SmartNodes(hemisphere='left')
         self.right_nodes = SmartNodes(hemisphere='right')
