@@ -1,3 +1,6 @@
+اختراع ثبت شده در مالکیت معنوی جمهوری اسلامی ایران 
+هر گونه کپی برداری ممنوع است 
+
 ۷# 3D-artificial-neural-network-inspired-by-
 The invention of a dynamic 3D neural network, inspired by biology and geometry, has designed and architected intelligent intelligence.
 class HemisphereNetwork:
