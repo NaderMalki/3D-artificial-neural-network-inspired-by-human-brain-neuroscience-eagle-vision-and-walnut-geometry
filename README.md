@@ -1,6 +1,21 @@
+
 140450140003002031شماره اظهارنامه اختراع
 اختراع ثبت شده در مالکیت معنوی جمهوری اسلامی ایران 
 هر گونه کپی برداری ممنوع است 
+name: Python Syntax Check
+
+on: [push, pull_request]
+
+jobs:
+  check-python-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+      - name: Check syntax
+        run: python -m py_compile $(find . -name "*.py")
+
 
 ۷# 3D-artificial-neural-network-inspired-by-
 The invention of a dynamic 3D neural network, inspired by biology and geometry, has designed and architected intelligent intelligence.
