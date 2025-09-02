@@ -2249,30 +2249,373 @@ for name, params in ARCHITECTURES.items():
             'time': time_taken,
             'memory': mem_used,
             'density': len(connections)/n_neurons
+        }import torch
+import torch.nn as nn
+import time
+import numpy as np
+from typing import Dict, List, Optional, Tuple
+
+class OptimizedConnectedBrain(nn.Module):
+    """نسخه بهینه‌سازی شده ConnectedBrain برای سرعت"""
+    
+    def __init__(self, input_dim: int, num_classes: int, hidden_dim: int = 128):
+        super().__init__()
+        
+        self.input_dim = input_dim
+        self.num_classes = num_classes
+        self.hidden_dim = hidden_dim
+        
+        # 🚀 بهینه‌سازی 1: کاهش پیچیدگی لایه‌ها
+        self.feature_extractor = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(inplace=True),  # inplace برای کاهش مصرف memory
+            nn.BatchNorm1d(hidden_dim),
+            nn.Dropout(0.2)
+        )
+        
+        # 🚀 بهینه‌سازی 2: تک لایه برای هر ماژول
+        self.plasticity_layer = nn.Linear(hidden_dim, hidden_dim)
+        self.attention_layer = nn.Linear(hidden_dim, hidden_dim)
+        
+        # 🚀 بهینه‌سازی 3: ساده‌سازی classifier
+        self.classifier = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden_dim // 2, num_classes)
+        )
+        
+        # 🚀 بهینه‌سازی 4: حذف محاسبات غیرضروری
+        self.register_buffer('plasticity_weights', torch.ones(hidden_dim))
+        
+    def forward(self, x: torch.Tensor, mode: str = 'fast') -> torch.Tensor:
+        """
+        Forward pass بهینه‌سازی شده
+        mode: 'fast' (فقط classification) یا 'full' (تمام ویژگی‌ها)
+        """
+        batch_size = x.size(0)
+        
+        # Feature extraction
+        features = self.feature_extractor(x)
+        
+        if mode == 'fast':
+            # 🚀 حالت سریع: فقط classification
+            output = self.classifier(features)
+            return output
+        
+        else:
+            # حالت کامل: شامل تمام ویژگی‌ها
+            # Plasticity (ساده‌سازی شده)
+            plastic_features = features * self.plasticity_weights
+            
+            # Attention (ساده‌سازی شده)  
+            attention_weights = torch.sigmoid(self.attention_layer(plastic_features))
+            attended_features = plastic_features * attention_weights
+            
+            # Classification
+            output = self.classifier(attended_features)
+            
+            return {
+                'predictions': output,
+                'features': features,
+                'attention': attention_weights
+            }
+
+class UltraFastCNN(nn.Module):
+    """CNN فوق سریع برای مقایسه"""
+    
+    def __init__(self, input_dim: int, num_classes: int):
+        super().__init__()
+        
+        # محاسبه اندازه تصویر
+        self.img_size = int(np.sqrt(input_dim))
+        if self.img_size ** 2 != input_dim:
+            self.img_size = int(np.sqrt(input_dim)) + 1
+            self.padding_size = self.img_size ** 2 - input_dim
+        else:
+            self.padding_size = 0
+        
+        # شبکه فوق سریع
+        self.conv = nn.Sequential(
+            nn.Conv2d(1, 32, 5, stride=2, padding=2),  # کاهش resolution
+            nn.ReLU(inplace=True),
+            nn.Conv2d(32, 64, 5, stride=2, padding=2),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d(4)  # Global pooling سریع
+        )
+        
+        self.classifier = nn.Sequential(
+            nn.Linear(64 * 16, num_classes)  # بدون hidden layer
+        )
+    
+    def forward(self, x):
+        batch_size = x.size(0)
+        
+        # Padding if needed
+        if self.padding_size > 0:
+            padding = torch.zeros(batch_size, self.padding_size, device=x.device)
+            x = torch.cat([x, padding], dim=1)
+        
+        # Reshape
+        x = x.view(batch_size, 1, self.img_size, self.img_size)
+        
+        # CNN processing
+        x = self.conv(x)
+        x = x.view(batch_size, -1)
+        x = self.classifier(x)
+        
+        return x
+
+def benchmark_speed_optimized(model, X_test, num_runs=1000, batch_sizes=[1, 8, 32, 64, 128]):
+    """بنچمارک سرعت بهینه‌سازی شده"""
+    model.eval()
+    results = {}
+    
+    print(f"🚀 بنچمارک سرعت {model.__class__.__name__}")
+    print("-" * 50)
+    
+    for batch_size in batch_sizes:
+        if batch_size > len(X_test):
+            continue
+            
+        # انتخاب batch
+        batch_data = X_test[:batch_size]
+        
+        # Warmup
+        with torch.no_grad():
+            for _ in range(10):
+                if isinstance(model, OptimizedConnectedBrain):
+                    _ = model(batch_data, mode='fast')
+                else:
+                    _ = model(batch_data)
+        
+        # اندازه‌گیری زمان
+        times = []
+        
+        with torch.no_grad():
+            for _ in range(num_runs):
+                start = time.perf_counter()
+                
+                if isinstance(model, OptimizedConnectedBrain):
+                    _ = model(batch_data, mode='fast')
+                else:
+                    _ = model(batch_data)
+                
+                end = time.perf_counter()
+                times.append(end - start)
+        
+        # محاسبه آمار
+        mean_time = np.mean(times)
+        std_time = np.std(times)
+        samples_per_sec = batch_size / mean_time
+        
+        results[batch_size] = {
+            'mean_time_ms': mean_time * 1000,
+            'std_time_ms': std_time * 1000,
+            'samples_per_sec': samples_per_sec
         }
+        
+        print(f"Batch {batch_size:3d}: {mean_time*1000:6.2f}±{std_time*1000:4.2f}ms | "
+              f"{samples_per_sec:8.1f} samples/sec")
+    
+    return results
 
-# 7. نمایش نتایج مقایسه‌ای
-print("\n📊 Comparative Results:")
-print(f"{'Architecture':<15}{'Neurons':<10}{'Time (ms)':<12}{'Memory (KB)':<15}{'Connectivity':<12}")
-print("-" * 60)
-for name, res in results.items():
-    arch, n = name.split('_')
-    print(f"{arch:<15}{n:<10}{res['time']*1000:<12.2f}{res['memory']/1024:<15.2f}{res['density']:<12.2f}")
+def compare_speed_optimizations():
+    """مقایسه سرعت بهینه‌سازی‌ها"""
+    print("⚡ مقایسه بهینه‌سازی‌های سرعت")
+    print("=" * 60)
+    
+    # تولید داده تست
+    input_dim = 196
+    num_classes = 10
+    X_test = torch.randn(1000, input_dim)
+    
+    # مدل‌های مختلف
+    models = {
+        'OptimizedConnectedBrain': OptimizedConnectedBrain(input_dim, num_classes, hidden_dim=64),
+        'UltraFastCNN': UltraFastCNN(input_dim, num_classes),
+        'OriginalConnectedBrain': IntegratedLearningBrain(input_dim, num_classes, hidden_dim=64) 
+                                  if 'IntegratedLearningBrain' in globals() else None
+    }
+    
+    # حذف مدل‌های None
+    models = {k: v for k, v in models.items() if v is not None}
+    
+    results = {}
+    
+    # بنچمارک هر مدل
+    for name, model in models.items():
+        print(f"\n{'='*20} {name} {'='*20}")
+        
+        # اطلاعات مدل
+        total_params = sum(p.numel() for p in model.parameters())
+        print(f"📊 پارامترها: {total_params:,}")
+        
+        # بنچمارک سرعت
+        speed_results = benchmark_speed_optimized(model, X_test, num_runs=500)
+        
+        results[name] = {
+            'params': total_params,
+            'speed_results': speed_results
+        }
+    
+    # مقایسه نهایی
+    print_speed_comparison(results)
+    plot_speed_results(results)
+    
+    return results
 
-# 8. تحلیل حافظه GPU
-if torch.cuda.is_available():
-    print("\n💻 GPU Memory Summary:")
-    print(torch.cuda.memory_summary(device=DEVICE))
-    📊 Comparative Results:
-Architecture   Neurons    Time (ms)   Memory (KB)   Connectivity
-------------------------------------------------------------
-random        255        1.45        125.82        0.99        
-random        355        1.87        182.14        0.99        
-domino        255        1.32        125.12        0.99        
-domino        355        1.76        181.05        0.99        
-bushy         255        1.51        126.73        0.49        
-bushy         355        1.92        183.25        0.49        
-spiral        255        1.43        125.91        0.99        
-spiral        355        1.85        182.33        0.99        
-hyperbolic    255        1.48        126.15        2.13        
-hyperbolic    355        1.90        183.62        2.01
+def print_speed_comparison(results):
+    """چاپ مقایسه سرعت"""
+    print("\n" + "="*70)
+    print("📊 مقایسه سرعت نهایی")
+    print("="*70)
+    
+    print(f"{'مدل':<25} {'پارامتر':<10} {'Batch=1':<12} {'Batch=32':<12} {'Batch=128':<12}")
+    print("-" * 70)
+    
+    for name, result in results.items():
+        params = result['params']
+        speed_data = result['speed_results']
+        
+        batch1_speed = speed_data.get(1, {}).get('samples_per_sec', 0)
+        batch32_speed = speed_data.get(32, {}).get('samples_per_sec', 0)  
+        batch128_speed = speed_data.get(128, {}).get('samples_per_sec', 0)
+        
+        print(f"{name:<25} {params:<10,} {batch1_speed:<12.1f} {batch32_speed:<12.1f} {batch128_speed:<12.1f}")
+    
+    # بهترین عملکرد
+    print(f"\n🏆 بهترین سرعت در batch=32:")
+    best_batch32 = max(results.items(), 
+                      key=lambda x: x[1]['speed_results'].get(32, {}).get('samples_per_sec', 0))
+    
+    best_speed = best_batch32[1]['speed_results'].get(32, {}).get('samples_per_sec', 0)
+    print(f"• {best_batch32[0]}: {best_speed:.1f} samples/sec")
+
+def plot_speed_results(results):
+    """رسم نتایج سرعت"""
+    import matplotlib.pyplot as plt
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+    
+    # نمودار 1: سرعت vs اندازه batch
+    batch_sizes = [1, 8, 32, 64, 128]
+    
+    for name, result in results.items():
+        speeds = []
+        actual_batch_sizes = []
+        
+        for bs in batch_sizes:
+            if bs in result['speed_results']:
+                speeds.append(result['speed_results'][bs]['samples_per_sec'])
+                actual_batch_sizes.append(bs)
+        
+        ax1.plot(actual_batch_sizes, speeds, marker='o', label=name, linewidth=2)
+    
+    ax1.set_xlabel('اندازه Batch')
+    ax1.set_ylabel('نمونه در ثانیه')
+    ax1.set_title('سرعت استنتاج vs اندازه Batch')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    ax1.set_xscale('log', base=2)
+    
+    # نمودار 2: تعداد پارامتر vs سرعت
+    for name, result in results.items():
+        params = result['params'] / 1000  # در هزار
+        speed_32 = result['speed_results'].get(32, {}).get('samples_per_sec', 0)
+        
+        ax2.scatter(params, speed_32, s=100, label=name)
+        ax2.annotate(name, (params, speed_32), xytext=(5, 5), 
+                    textcoords='offset points', fontsize=9)
+    
+    ax2.set_xlabel('تعداد پارامتر (هزار)')
+    ax2.set_ylabel('سرعت (samples/sec, batch=32)')
+    ax2.set_title('کارایی: پارامتر vs سرعت')
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
+
+# بهینه‌سازی‌های اضافی
+class TurboConnectedBrain(nn.Module):
+    """نسخه فوق سریع ConnectedBrain"""
+    
+    def __init__(self, input_dim: int, num_classes: int):
+        super().__init__()
+        
+        # 🚀 استفاده از کمترین لایه ممکن
+        self.backbone = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 64),
+            nn.ReLU(inplace=True),
+            nn.Linear(64, num_classes)
+        )
+        
+        # 🚀 حذف کامل ماژول‌های اضافی در حالت inference
+        self.training_mode = True
+    
+    def forward(self, x):
+        return self.backbone(x)
+    
+    def set_inference_mode(self):
+        """تنظیم حالت inference سریع"""
+        self.training_mode = False
+        self.eval()
+
+def final_speed_test():
+    """تست نهایی سرعت"""
+    print("🏎️ تست نهایی سرعت - مقایسه با CNN")
+    print("=" * 50)
+    
+    input_dim = 196
+    num_classes = 10
+    X_test = torch.randn(1000, input_dim)
+    
+    models = {
+        'TurboConnectedBrain': TurboConnectedBrain(input_dim, num_classes),
+        'UltraFastCNN': UltraFastCNN(input_dim, num_classes)
+    }
+    
+    # تست سرعت batch=32 (عملی‌ترین اندازه)
+    batch_size = 32
+    num_runs = 1000
+    
+    for name, model in models.items():
+        model.eval()
+        batch_data = X_test[:batch_size]
+        
+        # Warmup
+        with torch.no_grad():
+            for _ in range(20):
+                _ = model(batch_data)
+        
+        # اندازه‌گیری
+        times = []
+        with torch.no_grad():
+            for _ in range(num_runs):
+                start = time.perf_counter()
+                _ = model(batch_data)
+                end = time.perf_counter()
+                times.append(end - start)
+        
+        mean_time = np.mean(times)
+        samples_per_sec = batch_size / mean_time
+        params = sum(p.numel() for p in model.parameters())
+        
+        print(f"{name}:")
+        print(f"  • سرعت: {samples_per_sec:.1f} samples/sec")
+        print(f"  • زمان: {mean_time*1000:.2f}ms per batch")
+        print(f"  • پارامتر: {params:,}")
+        print(f"  • کارایی: {samples_per_sec/params*1000:.3f} (samples/sec/1K params)")
+        print()
+
+# اجرای تست‌ها
+if __name__ == "__main__":
+    # مقایسه بهینه‌سازی‌ها
+    optimization_results = compare_speed_optimizations()
+    
+    # تست نهایی سرعت
+    final_speed_test()
+
+
+
