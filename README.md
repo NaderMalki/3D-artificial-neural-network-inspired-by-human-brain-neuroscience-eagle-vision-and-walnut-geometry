@@ -176,3 +176,171 @@ class TestPiezoelectricReport(unittest.TestCase):
 
 if name == '__main__':
     unittest.main()
+# main_code.py (refactored version)
+import os
+import glob
+import json
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+from sklearn.metrics import classification_report
+from datetime import datetime
+
+plt.style.use('seaborn-v0_8')
+
+def create_title_page():
+    """Create the title page for the PDF report"""
+    fig, ax = plt.subplots(figsize=(11, 8.5))
+    ax.axis('off')
+    ax.text(0.5, 0.6, "گزارش شبکه دو نیمکره‌ای – کد ۲۰۳۱", 
+            fontsize=20, ha='center', fontweight='bold')
+    ax.text(0.5, 0.4, f"تاریخ تولید: {datetime.now().strftime('%Y-%m-%d %H:%M')}", 
+            fontsize=14, ha='center')
+    return fig
+
+def process_seed_data(metrics_file, hist_file, conf_file, pdf):
+    """Process data for a single seed and add to PDF"""
+    seed_id = os.path.splitext(os.path.basename(metrics_file))[0].split("_")[-1]
+
+    with open(metrics_file, 'r', encoding='utf-8') as f:
+        metrics = json.load(f)
+
+    history = pd.read_csv(hist_file)
+    confmat = pd.read_csv(conf_file, index_col=0).values
+
+    # Generate classification report
+    y_true = np.repeat(range(confmat.shape[0]), confmat.sum(axis=1))
+    y_pred = np.repeat(range(confmat.shape[1]), confmat.sum(axis=0))
+
+    report_text = (
+        f"نتایج Seed {seed_id}:\n"
+        f"دقت: {metrics.get('test_accuracy', 'N/A'):.4f}\n"
+        f"امتیاز F1: {metrics.get('f1_score', 'N/A'):.4f}\n"
+        f"گزارش طبقه‌بندی:\n{classification_report(y_true, y_pred)}"
+    )
+
+    # Training curves
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(history['epoch'], history['accuracy'], label='دقت آموزش')
+    ax.plot(history['epoch'], history['val_accuracy'], label='دقت اعتبارسنجی')
+    ax.set_title(f'منحنی‌های آموزش – Seed {seed_id}')
+    ax.set_xlabel('دوره')
+    ax.set_ylabel('دقت')
+    ax.legend()
+    pdf.savefig(fig)
+    plt.close()
+
+    # Confusion matrix
+    fig, ax = plt.subplots(figsize=(6, 5))
+    im = ax.imshow(confmat, cmap='viridis', aspect='auto')
+    plt.colorbar(im, ax=ax)
+    ax.set_title(f'ماتریس درهم‌ریختگی – Seed {seed_id}')
+    pdf.savefig(fig)
+    plt.close()
+
+    # Text page
+    fig, ax = plt.subplots(figsize=(8.5, 11))
+    ax.axis('off')
+    ax.text(0, 1, report_text, va='top', family='monospace', fontsize=8)
+    pdf.savefig(fig)
+    plt.close()
+
+def simulate_piezoelectric_sensor():
+    """Simulate piezoelectric sensor and return figure"""
+    # Parameters
+    PARAMS = {
+        'd33': 2.5e-10,
+        'thickness_m': 0.001,
+        'spring_k': 1000,
+        'damping_c': 10,
+        'capacitance_C': 1e-6,
+        'radius': 0.01
+    }
+
+    # Time and displacement
+    time = np.linspace(0, 1, 500)
+    x = 0.01 * np.sin(2 * np.pi * 5 * time)
+    dx_dt = np.gradient(x, time)
+
+    # Calculations
+    cross_section = np.pi * PARAMS['radius'] ** 2
+    F_mech = PARAMS['spring_k'] * x + PARAMS['damping_c'] * dx_dt
+    sigma = F_mech / cross_section
+    Q = PARAMS['d33'] * F_mech
+    V = Q / PARAMS['capacitance_C']
+
+    # Plot
+    fig, axs = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+
+    axs[0].plot(time, V * 1e3)
+    axs[0].set_ylabel('ولتاژ (mV)')
+    axs[0].set_title('ولتاژ پیزوالکتریک بر حسب زمان')
+    axs[0].grid(True, alpha=0.3)
+
+    axs[1].plot(time, F_mech)
+    axs[1].set_ylabel('نیرو (N)')
+    axs[1].set_title('نیروی مکانیکی بر حسب زمان')
+    axs[1].grid(True, alpha=0.3)
+
+    axs[2].plot(time, sigma / 1e6)
+    axs[2].set_ylabel('فشار (MPa)')
+    axs[2].set_xlabel('زمان (s)')
+    axs[2].set_title('فشار بر حسب زمان')
+    axs[2].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    return fig
+
+def create_innovation_page():
+    """Create innovation description page"""
+    innovation_text = """
+نوآوری‌های مدل:#
+1. ترکیب شبکه عصبی دو نیمکره‌ای با آرایه حسگرهای #پیزوالکتریک هوشمند #
+   برای پردازش همزمان داده‌های مکانیکی و الکتریکی.#
+2. مدل فیزیکی شامل فنر، میرایی و ظرفیت خازنی برای# شبیه‌سازی #
+   دقیق‌تر رفتار حسگر.#
+3. مکانیزم گزارش‌دهی چند-ران خودکار با ترکیب نتایج ##یادگیری ماشین #
+   و مدارهای حسگر در یک فایل PDF جامع.#
+   fig, ax = plt.subplots(figsize=(8.5, 11))
+    ax.axis('off')
+    ax.text(0.05, 0.95, innovation_text, va='top', family='sans-serif', 
+            fontsize=12, linespacing=1.5)
+    return fig
+
+def generate_report(results_dir="results"):
+    """Generate the complete PDF report"""
+    os.makedirs(results_dir, exist_ok=True)
+
+    # Find files
+    all_files = glob.glob(os.path.join(results_dir, '*'))
+    seed_metrics = sorted([f for f in all_files if 'metrics_seed' in f and f.endswith('.json')])
+    seed_histories = sorted([f for f in all_files if 'history_seed' in f and f.endswith('.csv')])
+    seed_confmats = sorted([f for f in all_files if 'confmat_seed' in f and f.endswith('.csv')])
+
+    # Create PDF
+    pdf_path = os.path.join(results_dir, 'summary_dual_hemisphere_2031.pdf')
+
+    with PdfPages(pdf_path) as pdf:
+        # Title page
+        pdf.savefig(create_title_page())
+        plt.close()
+
+        # Process each seed
+        for metrics_file, hist_file, conf_file in zip(seed_metrics, seed_histories, seed_confmats):
+            process_seed_data(metrics_file, hist_file, conf_file, pdf)
+
+        # Piezoelectric simulation
+        pdf.savefig(simulate_piezoelectric_sensor())
+        plt.close()
+
+        # Innovations
+        pdf.savefig(create_innovation_page())
+        plt.close()
+
+    print(f"گزارش نهایی ساخته شد: {pdf_path}")
+    return pdf_path
+
+# Main execution
+if name == "__main__":
+    generate_report()
