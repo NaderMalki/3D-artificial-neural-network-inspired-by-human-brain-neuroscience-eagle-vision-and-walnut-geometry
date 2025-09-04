@@ -111,3 +111,68 @@ class TestPiezoelectricReport(unittest.TestCase):
         time = np.linspace(0, 1, 100)
         x = 0.01 * np.sin(2 * np.pi * 5 * time)
         dx_dt = np.gradient(x, time)
+# Calculations
+        cross_section = np.pi * params['radius'] ** 2
+        F_mech = params['spring_k'] * x + params['damping_c'] * dx_dt
+        sigma = F_mech / cross_section
+        Q = params['d33'] * F_mech
+        V = Q / params['capacitance_C']
+
+        # Assertions
+        self.assertEqual(len(V), 100)
+        self.assertEqual(len(F_mech), 100)
+        self.assertEqual(len(sigma), 100)
+        self.assertTrue(np.all(np.isfinite(V)))
+        self.assertTrue(np.all(np.isfinite(F_mech)))
+        self.assertTrue(np.all(np.isfinite(sigma)))
+
+    def test_create_innovation_page(self):
+        """Test innovation page creation"""
+        fig = create_innovation_page()
+        self.assertIsInstance(fig, plt.Figure)
+        self.assertEqual(len(fig.axes), 1)
+
+    @patch('matplotlib.backends.backend_pdf.PdfPages')
+    @patch('glob.glob')
+    def test_generate_report_integration(self, mock_glob, mock_pdf):
+        """Test the complete report generation process"""
+        # Mock glob to return our test files
+        mock_glob.side_effect = [
+            sorted([os.path.join(self.results_dir, f'metrics_seed{i}.json') for i in range(2)]),
+            sorted([os.path.join(self.results_dir, f'history_seed{i}.csv') for i in range(2)]),
+            sorted([os.path.join(self.results_dir, f'confmat_seed{i}.csv') for i in range(2)])
+        ]
+
+        # Mock PdfPages
+        mock_pdf_instance = MagicMock()
+        mock_pdf.return_value.__enter__.return_value = mock_pdf_instance
+
+        # Generate report
+        pdf_path = generate_report(self.results_dir)
+
+        # Verify PDF was created
+        self.assertTrue(pdf_path.endswith('summary_dual_hemisphere_2031.pdf'))
+
+        # Verify savefig was called multiple times (title + 2 seeds * 3 + sensor + innovations)
+        expected_calls = 1 + (2 * 3) + 1 + 1  # title + seeds + sensor + innovations
+        self.assertEqual(mock_pdf_instance.savefig.call_count, expected_calls)
+
+    def test_file_reading(self):
+        """Test that files can be read correctly"""
+        # Test JSON reading
+        with open(os.path.join(self.results_dir, 'metrics_seed0.json'), 'r') as f:
+            metrics = json.load(f)
+        self.assertIn('test_accuracy', metrics)
+        self.assertIn('f1_score', metrics)
+
+        # Test CSV reading
+        history = pd.read_csv(os.path.join(self.results_dir, 'history_seed0.csv'))
+        self.assertIn('epoch', history.columns)
+        self.assertIn('accuracy', history.columns)
+        self.assertIn('val_accuracy', history.columns)
+
+        confmat = pd.read_csv(os.path.join(self.results_dir, 'confmat_seed0.csv'), index_col=0)
+        self.assertEqual(confmat.shape, (2, 2))
+
+if name == '__main__':
+    unittest.main()
