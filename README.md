@@ -1,33 +1,3 @@
-#Invention of "Artificial Neural Network #with 3D and Bi-hemispheric Processing
-#140450140003002031,iran.nader,maleki
-# test_piezoelectric_report.py
-
-
-import unittest
-import os
-import tempfile
-import shutil
-import json
-import pandas as pd
-import numpy as np
-from unittest.mock import patch, MagicMock
-import matplotlib.pyplot as plt
-
-# Import the functions from the main code (after refactoring)
-from main_code import (
-    create_title_page,
-    process_seed_data,
-    simulate_piezoelectric_sensor,
-    create_innovation_page,
-    generate_report
-)
-
-class TestPiezoelectricReport(unittest.TestCase):
-
-    def setUp(self):
-        """Set up test environment"""
-        self.test_dir = tempfile.mkdtemp()
-        self.results_dir = os.path.join(self.test_dir, 'results')
         os.makedirs(self.results_dir, exist_ok=True)
 
         # Create test data files
