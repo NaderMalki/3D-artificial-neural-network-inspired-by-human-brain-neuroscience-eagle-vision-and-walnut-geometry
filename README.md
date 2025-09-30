@@ -88,7 +88,8 @@ out1 = model(x)
 print("\n🎓 حالت: با نظارت")
 model.set_mode('supervised')
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+optimizer = torch.optim.Adam(model.parameters(), 
+lr=1e-3)
 
 optimizer.zero_grad()
 out2 = model(x)
@@ -99,3 +100,6 @@ optimizer.step()
 # --- 3. یادگیری بازخوردی ---
 print("\n🔁 حالت: بازخوردی (Feedback)")
 model.set_mode('
+pip install torch torchvision matplotlib seaborn brian2
+ pip install torch torchvision matplotlib seaborn brian2
+ 
