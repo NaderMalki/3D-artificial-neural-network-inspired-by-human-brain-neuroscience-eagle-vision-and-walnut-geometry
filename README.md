@@ -99,3 +99,72 @@ optimizer.step()
 # --- 3. یادگیری بازخوردی ---
 print("\n🔁 حالت: بازخوردی (Feedback)")
 model.set_mode('
+# nano_synapse_brian2.py
+from brian2 import *
+
+def create_nanotransistor_synapse(pre, post, weight=0.5):
+    """
+    شبیه‌سازی یک سیناپس نانومقیاس بر پایه Memtransistor
+    """
+    # معادله دینامیک مقاومت (R): کاهش با جریان عبوری
+    eqs_synapse = '''
+    w : 1 (constant)  # وزن اولیه
+    R : ohm           # مقاومت دینامیک
+    I_syn = w * (V_pre - V_post) / R : amp
+    '''
+    
+    # قانون یادگیری: R کاهش می‌یابد با فعالیت پیش‌ و پس‌سیناپسی
+    synapse = Synapses(pre, post, eqs_synapse, on_pre='''
+    V_post += I_syn * 1e-3  # تأثیر جریان بر ولتاژ پس‌سیناپسی
+    R = R - 0.01 * R        # کاهش مقاومت با استفاده
+    ''')
+    synapse.connect()
+    synapse.w = weight
+    synapse.R = 1000 * ohm  # مقاومت اولیه: 1 کیلو اهم
+    return synapse
+    # torch_brian_bridge.py
+import torch
+import numpy as np
+from brian2 import *
+
+class NanoPlasticLayer(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input_tensor, weight, bias, dt=1e-3):
+        # تبدیل تانسور PyTorch به ولتاژ برای Brian2
+        batch_size, n_neurons = input_tensor.shape
+        device = input_tensor.device
+        
+        # شبیه‌سازی Brian2 برای یک نمونه (برای سادگی)
+        start_scope()
+        N = NeuronGroup(n_neurons, 'dv/dt = -v/(10*ms) : volt', threshold='v>1*volt', reset='v=0*volt')
+        M = SpikeMonitor(N)
+        
+        # اعمال ولتاژ ورودی
+        N.v = input_tensor[0].cpu().numpy() * volt
+        
+        run(dt * second)
+        
+        # تبدیل خروجی اسپایک به تانسور
+        spikes = torch.zeros(n_neurons, device=device)
+        for i in M.i:
+            spikes[i] += 1
+        
+        ctx.save_for_backward(input_tensor, weight, bias)
+        return spikes.unsqueeze(0)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input_tensor, weight, bias = ctx.saved_tensors
+        # گرادیان ساده (در عمل می‌توان از surrogate gradient استفاده کرد)
+        grad_input = grad_output @ weight
+        return grad_input, None, None, None
+
+class NanoPlasticSNNLayer(nn.Module):
+    def __init__(self, in_features, out_features):
+        super().__init__()
+        self.weight = nn.Parameter(torch.randn(out_features, in_features) * 0.1)
+        self.bias = nn.Parameter(torch.zeros(out_features))
+        self.dt = 1e-3  # 1ms
+
+    def forward(self, x):
+        return NanoPlasticLayer.apply(x, self.weight, self.bias, self.dt)
