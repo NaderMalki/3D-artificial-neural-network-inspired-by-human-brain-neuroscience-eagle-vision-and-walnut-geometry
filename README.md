@@ -1,4 +1,4 @@
-ورودی → [پیش‌پردازش] → [لایه 1: قرمز] → [لایه 2: آبی] → [لایه 3: سبز] → خروجی
+ورودی → [پیش‌پردازش خاکستری ] → [لایه 1: صورتی ] → [لایه 2: آبی فیروزه ای ] → [لایه 3: سبز تیره ] → خروجی
                           ↑               ↑               ↑
                       (پلاستیسیته فعال در هر لایه)
                       
@@ -368,6 +368,14 @@ dev = qml.device("default.qubit", wires=4)
 @qml.qnode(dev)
 def quantum_fovea(inputs, weights):
     # کد کوانتومی برای شبیه‌سازی "تمرکز" عقاب
+    \[
+  \Delta w \propto 
+  \begin{cases}
+  +e^{-\Delta t/\tau_+} & \Delta t>0 \\
+  -e^{\Delta t/\tau_-} & \Delta t<0
+  \end{cases}
+  \]
+
     for i in range(4):
         qml.RY(inputs[i], wires=i)
     qml.StronglyEntanglingLayers(weights, wires=range(4))
@@ -400,3 +408,7 @@ set4 = [8, 8, 9]
 result = combine_and_remove_duplicates(set1, set2, set3, set4)
 assert result == {1, 2, 3, 4, 5, 6, 7, 8, 9}
 print("Test 2 passed!")
+
+all_sets = set(set1) | set(set2) | set(set3)
+print(all_sets)
+# خروجی: {1, 2, 3, 4, 5, 6, 7, 8}
