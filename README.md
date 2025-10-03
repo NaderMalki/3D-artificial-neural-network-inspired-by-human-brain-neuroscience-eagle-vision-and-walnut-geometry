@@ -372,4 +372,31 @@ def quantum_fovea(inputs, weights):
         qml.RY(inputs[i], wires=i)
     qml.StronglyEntanglingLayers(weights, wires=range(4))
     return [qml.expval(qml.PauliZ(i)) for i in range(4)]
-    
+    # Example sets/lists
+set1 = [1, 2, 3, 4]
+set2 = [3, 4, 5, 6]
+set3 = [6, 7, 8]
+
+# Union using set literal and | operator
+all_sets = set(set1) | set(set2) | set(set3)
+print(all_sets)  # Output: {1, 2, 3, 4, 5, 6, 7, 8}
+
+# Union using set().union and unpacking a list of iterables
+all_lists = [set1, set2, set3]
+all_sets = set().union(*all_lists)
+print(all_sets)  # Output: {1, 2, 3, 4, 5, 6, 7, 8}
+
+# General function for any number of collections (lists or sets)
+def combine_and_remove_duplicates(*collections):
+    return set().union(*collections)
+
+# Simple test
+result = combine_and_remove_duplicates(set1, set2, set3)
+assert result == {1, 2, 3, 4, 5, 6, 7, 8}
+print("Test passed!")
+
+# Test with another list containing duplicate entries
+set4 = [8, 8, 9]
+result = combine_and_remove_duplicates(set1, set2, set3, set4)
+assert result == {1, 2, 3, 4, 5, 6, 7, 8, 9}
+print("Test 2 passed!")
