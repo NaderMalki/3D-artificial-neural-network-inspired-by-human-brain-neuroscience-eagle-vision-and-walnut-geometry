@@ -1,6 +1,138 @@
 ورودی → [پیش‌پردازش خاکستری ] → [لایه 1: صورتی ] → [لایه 2: آبی فیروزه ای ] → [لایه 3: سبز تیره ] → خروجی
                           ↑               ↑               ↑
-                      (پلاستیسیته فعال در هر #لایه)
+                      (پلاستیسیته فعال در هر #
+import tensorflow a
+from tensorflow.keras.layers import Layer, Dense, Input
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
+from sklearn.datasets import load_iris
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+
+# ----------------------------
+# 1. داده‌ها
+# ----------------------------
+iris = load_iris()
+X, y = iris.data, iris.target
+X = StandardScaler().fit_transform(X)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+y_train = tf.keras.utils.to_categorical(y_train, 3)
+y_test = tf.keras.utils.to_categorical(y_test, 3)
+
+# ----------------------------
+# 2. لایه ورودی پیشرفته: توجه + مدولاسیون + دو projection
+# ----------------------------
+class InputProcessor(Layer):
+    def __init__(self, proj_dim=8, **kwargs):
+        super(InputProcessor, self).__init__(**kwargs)
+        self.proj_dim = proj_dim
+        # دو projection head
+        self.proj1 = Dense(proj_dim, activation='linear', name='proj_linear')
+        self.proj2 = Dense(proj_dim, activation='relu', name='proj_nonlinear')
+        # وزن‌های توجه برای مدولاسیون
+        self.att_weight = self.add_weight(shape=(proj_dim,), initializer='ones', trainable=True)
+
+    def call(self, x):
+        # فیلتر/نرمال‌سازی قبلاً انجام شده
+        p1 = self.proj1(x)  # بردار وزنی 1
+        p2 = self.proj2(x)  # بردار وزنی 2
+        # مدولاسیون با توجه پویا
+        modulated = p1 * tf.nn.sigmoid(self.att_weight) + p2 * (1 - tf.nn.sigmoid(self.att_weight))
+        return p1, p2, modulated
+
+# ----------------------------
+# 3. بلوک هذلولوی (شبیه‌سازی‌شده)
+# ----------------------------
+def hyperbolic_activation(x):
+    """تقریبی از فعال‌ساز در فضای هذلولوی (Poincaré Ball)"""
+    norm = tf.norm(x, axis=-1, keepdims=True)
+    eps = 1e-6
+    return tf.math.tanh(norm + eps) * (x / (norm + eps))
+
+class HyperbolicBlock(Layer):
+    def __init__(self, units=8, **kwargs):
+        super(HyperbolicBlock, self).__init__(**kwargs)
+        self.dense = Dense(units, activation='linear')
+    
+    def call(self, x):
+        x = self.dense(x)
+        return hyperbolic_activation(x)
+
+# ----------------------------
+# 4. مکانیزم توجه پویا بین بلوک‌ها
+# ----------------------------
+class CrossAttentionFusion(Layer):
+    def __init__(self, **kwargs):
+        super(CrossAttentionFusion, self).__init__(**kwargs)
+        self.w_q = Dense(8)  # query
+        self.w_k = Dense(8)  # key
+        self.w_v = Dense(8)  # value
+
+    def call(self, linear_out, hyper_out):
+        # query از بلوک خطی، key/value از بلوک هذلولوی
+        Q = self.w_q(linear_out)
+        K = self.w_k(hyper_out)
+        V = self.w_v(hyper_out)
+        
+        # توجه ساده
+        attn_scores = tf.matmul(Q, K, transpose_b=True) / tf.math.sqrt(8.0)
+        attn_weights = tf.nn.softmax(attn_scores, axis=-1)
+        attended = tf.matmul(attn_weights, V)
+        
+        # فیوژن نهایی
+        fused = linear_out + attended
+        return fused
+
+# ----------------------------
+# 5. مونتاژ مدل
+# ----------------------------
+inputs = Input(shape=(4,), name='input')
+
+# مرحله 1: پردازش ورودی
+proj1, proj2, modulated = InputProcessor(proj_dim=8, name='input_processor')(inputs)
+
+# مرحله 2: دو بلوک موازی
+linear_branch = Dense(8, activation='linear', name='linear_branch')(modulated)
+hyper_branch = HyperbolicBlock(units=8, name='hyperbolic_branch')(modulated)
+
+# مرحله 3: تبادل اطلاعات با توجه پویا
+fused = CrossAttentionFusion(name='cross_attention')([linear_branch, hyper_branch])
+
+# مرحله 4: خروجی
+outputs = Dense(3, activation='softmax', name='output')(fused)
+
+model = Model(inputs=inputs, outputs=outputs)
+
+# کامپایل
+model.compile(
+    optimizer=Adam(learning_rate=0.001),
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+print("✅ معماری مدل با موفقیت ساخته شد!")
+model.summary()
+
+# ----------------------------
+# 6. آموزش و تست
+# ----------------------------
+history = model.fit(
+    X_train, y_train,
+    validation_data=(X_test, y_test),
+    epochs=80,
+    batch_size=8,
+    verbose=1
+)
+
+# ارزیابی
+test_acc = model.evaluate(X_test, y_test, verbose=0)[1]
+print(f"\n🎯 دقت نهایی تست: {test_acc:.4f}")
+
+# تست یک نمونه
+sample = X_test[:1]
+pred = model.predict(sample)
+print(f"\n🧪 پیش‌بینی نمونه: {pred[0]} → کلاس: {np.argmax(pred)}")
+
                       
 import torch
 import torch.nn as nn
